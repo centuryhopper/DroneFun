@@ -4,7 +4,7 @@ from enforce_typing import enforce_types
 
 import cv2
 import pygame
-
+import numpy as np
 
 #region drone initialization
 
@@ -165,10 +165,10 @@ def initCamera():
     cap = cv2.VideoCapture(0)
 
     while True:
-
         _, img = cap,read()
-        
+        img = cv2.resize(img, (w,h))
         img,info = findFace(img ())
+        pError = trackFace(drone, info, w, pid, pError)
         print('center:',info[0],'area:',info[1],)
 
         cv2.imshow('video', img)
@@ -218,9 +218,21 @@ def findFace(img, color:tuple[int,int,int]=(0,0,255)):
     return img, [[0,0],0]
 
 fbRange = [6200,6800]
+# change sensitivity of error by this value
+pid = [0.4,0.4,0]
+pError = 0
+w,h = 360,240
 
 def trackFace(me, info, w, pid, pError):
     area = info[1]
+    x,y = info[0]
+    # w//2 is center of image
+    error = x - w//2
+    # equation of pid (proportional, integral, derivative)
+    
+    speed = pid[0]*error + pid[1]*(error - pError)
+    speed = int(np.clip(speed,-100,100))
+    
     # keep drone stationary
     if fbRange[0] < area < fbRange[1]:
         fb = 0
@@ -230,7 +242,9 @@ def trackFace(me, info, w, pid, pError):
     # else if face is too far, then move drone towards face
     elif area < fbRange[0] and area != 0:
         fb = 20
-        
+    # send command to drone
+    me.send_rc_control(0,fb,0,speed)
+    return pError
 
 #endregion
 
