@@ -1,25 +1,25 @@
+import cv2
+# import pygame
+import numpy as np
+
 from djitellopy import tello
 from time import sleep, time
 from enforce_typing import enforce_types
-
-import cv2
-import pygame
-import numpy as np
 
 #region drone initialization
 
 drone = tello.Tello()
 drone.connect()
-
 print(f'average temperature of drone: {drone.get_temperature()}')
-
 print(f'current drone battery level: {drone.get_battery()}%')
+drone.stream_on()
+drone.send_rc_control(0,0,25,0)
+sleep(1.1)
 
 global img
 
 # drone.takeoff()
 #endregion
-
 
 #region basic movements
 
@@ -39,7 +39,6 @@ global img
 
 #region image capture
 
-# drone.stream_on()
 
 
 # while True:
@@ -174,19 +173,14 @@ def findFace(img, color:tuple[int,int,int]=(0,0,255)):
     -the center value will be used to rotate
     -the area value will be used to go forwards and backwards
     '''
-    faceCascade = cv2.CascadeClassifier('./Resources/haarcascades/haarcascade_frontalface_default.xml')
+    faceCascade = cv2.CascadeClassifier('Resources/haarcascades/haarcascade_frontalface_default.xml')
     # converting to gray scale
-
     imgGray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
     faces = faceCascade.detectMultiScale(imgGray,1.2,8)
     
     # find the biggest face if there are multiple faces
-
     faceLstCenters = []
-
     faceLstArea = []
-
     for x,y,w,h in faces:
         startingPt = (x,y)
         endingPt = (x+w,y+h)
@@ -198,7 +192,7 @@ def findFace(img, color:tuple[int,int,int]=(0,0,255)):
         faceLstCenters.append([cx,cy])
         faceLstArea.append(area)
         # draw a green circle that shows the center of the face
-        cv2.circle(img, (cx,cy), 5, cv2.FILLED)
+        cv2.circle(img, (cx,cy), 5, (0,255,0), cv2.FILLED)
     
     # get index of max area of a face
     if len(faceLstArea) > 0:
@@ -210,7 +204,7 @@ def findFace(img, color:tuple[int,int,int]=(0,0,255)):
 
 #region track face()
 
-def trackFace(me, info, w, pid, pError):
+def trackFace(drone,info, w, pid, pError):
     area = info[1]
     x,y = info[0]
     # w//2 is center of image
@@ -231,7 +225,7 @@ def trackFace(me, info, w, pid, pError):
     elif area < fbRange[0] and area != 0:
         fb = 20
         
-    print(error, fb)
+    # print(speed, fb)
         
     # if we don't get anything, then we have to stop
     if x == 0:
@@ -239,28 +233,31 @@ def trackFace(me, info, w, pid, pError):
         error = 0
         
         
-    # send command to drone
-    # me.send_rc_control(0,fb,0,speed)
+    # send command to drone to follow face or move away from face
+    drone.send_rc_control(0,fb,0,speed)
     return error
 #endregion
 
 #region initCamera
 
 def initCamera():
-    global pError,drone
-    cap = cv2.VideoCapture(0)
+    global pError, drone
+    # cap = cv2.VideoCapture(0)
     while True:
-        _, img = cap.read()
+        # cap.read() returns (bool,np.array)
+        # _, img = cap.read()
+        img = drone.get_frame_read().frame
         img = cv2.resize(img, (w,h))
-        
         img,info = findFace(img)
-        pError = trackFace(drone, info, w, pid, pError)
-        print('center:',info[0],'area:',info[1],)
-
+        pError = trackFace(drone,info, w, pid, pError)
+        print('center:',info[0],'area:',info[1])
         # display image
-        cv2.imshow('MyResult', img)
-        cv2.waitKey(1)
-            
+        cv2.imshow('video window', img)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            drone.land()
+            break
+    cap.release()
+    cv2.destroyAllWindows()
 #endregion
 
 initCamera()
