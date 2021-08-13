@@ -1,6 +1,6 @@
 import cv2
-# import pygame
 import numpy as np
+import pygame
 
 from djitellopy import tello
 from time import sleep, time
@@ -12,13 +12,13 @@ drone = tello.Tello()
 drone.connect()
 print(f'average temperature of drone: {drone.get_temperature()}')
 print(f'current drone battery level: {drone.get_battery()}%')
-drone.stream_on()
-drone.send_rc_control(0,0,25,0)
-sleep(1.1)
+drone.streamon()
+# drone.takeoff()
+# drone.send_rc_control(0,0,12,0)
+# sleep(1.1)
 
 global img
 
-# drone.takeoff()
 #endregion
 
 #region basic movements
@@ -55,103 +55,62 @@ global img
 
 #region keyboard controls
 
-# def init():
-#     pygame.init()
+def init():
+    pygame.init()
+    win = pygame.display.set_mode((400,400))
+init()
 
-#     win = pygame.display.set_mode((400,400))
-# init()
+# acquiring key strokes
+# for more details, check out https://www.geeksforgeeks.org/how-to-get-keyboard-input-in-pygame/
+def getKey(keyCode:str) -> bool:
+    ans = False
+    for event in pygame.event.get(): pass
+    keyPressed = pygame.key.get_pressed()
+    myKey = getattr(pygame, f'K_{keyCode}')
+    if keyPressed[myKey]:
+        ans = True
+    pygame.display.update()
+    return ans
 
-
-# # acquiring key strokes
-
-# # for more details, check out https://www.geeksforgeeks.org/how-to-get-keyboard-input-in-pygame/
-
-# def getKey(keyCode:str) -> bool:
-
-#     ans = False
-
-#     for event in pygame.event.get(): pass
-
-#     keyPressed = pygame.key.get_pressed()
-
-#     myKey = getattr(pygame, f'K_{keyCode}')
-
-#     if keyPressed[myKey]:
-
-#         ans = True
-#     pygame.display.update()
-#     return ans
-
-
-# def getCustomizedKeyboardInputs(lrSpeed=0, fbSpeed=0, udSpeed=0, yvSpeed=0) -> list[int]:
-
-#     lr,fb,ud,yv = 0,0,0,0
-
-#     if getKey('LEFT'): lr = -lrSpeed
-
-#     elif getKey('RIGHT'): lr = lrSpeed
+def getCustomizedKeyboardInputs(lrSpeed=0, fbSpeed=0, udSpeed=0, yvSpeed=0) -> list[int]:
+    lr,fb,ud,yv = 0,0,0,0
+    if getKey('LEFT'): lr = -lrSpeed
+    elif getKey('RIGHT'): lr = lrSpeed
     
-
-#     if getKey('UP'): fb = -fbSpeed
-
-#     elif getKey('DOWN'): fb = fbSpeed
+    if getKey('UP'): fb = fbSpeed
+    elif getKey('DOWN'): fb = -fbSpeed
     
-
-#     if getKey('w'): ud = -udSpeed
-
-#     elif getKey('s'): ud = udSpeed
+    if getKey('w'): ud = udSpeed
+    elif getKey('s'): ud = -udSpeed
     
+    if getKey('a'): yv = -yvSpeed
+    elif getKey('d'): yv = yvSpeed
 
-#     if getKey('a'): yv = -yvSpeed
-
-#     elif getKey('d'): yv = yvSpeed
+    # take off if on the ground
+    if drone.get_height() < 2:
+        if getKey('t'): drone.takeoff()
     
+    # quit flying
+    if getKey('q'): drone.land(); sleep(3)
+    if getKey('z'):
+        cv2.imwrite(f'Resources/Images/{time()}.jpg', img)
+        sleep(0.5)
 
-#     # take off if on the ground
-
-#     if drone.get_height() < 2:
-
-#         if getKey('t'): drone.takeoff()
-    
-
-#     # quit flying
-
-#     if getKey('q'): drone.land(); sleep(3)
-    
-
-#     if getKey('z'):
-
-#         cv2.imwrite(f'Resources/Images/{time()}.jpg', img)
-
-#         sleep(0.5)
-    
-
-#     return [lr,fb,ud,yv]
+    return [lr,fb,ud,yv]
 
 #endregion
 
 #region surveillance
 
-# control the drone
-
-# using this coroutine
-
-# while True:
-
-#     lr,fb,ud,yv = getCustomizedKeyboardInputs(50,50,50,50)
-
-#     drone.send_rc_control(lr,fb,ud,yv)
-    
-#     # image capturing
-
-#     img = drone.get_frame_read().frame
-
-#     img = cv2.resize(img, (360,240))
-
-#     cv2.imshow('Image', img)
-
-#     cv2.waitKey(1)
-
+# control the drone using this coroutine
+while True:
+    lr,fb,ud,yv = getCustomizedKeyboardInputs(25,25,25,25)
+    drone.send_rc_control(lr,fb,ud,yv)
+    # image capturing
+    img = drone.get_frame_read().frame
+    img = cv2.resize(img, (360,240))
+    cv2.imshow('Drone Surveillance', img)
+    cv2.waitKey(1)
 
 #endregion
 
@@ -224,15 +183,11 @@ def trackFace(drone,info, w, pid, pError):
     # else if face is too far, then move drone towards face
     elif area < fbRange[0] and area != 0:
         fb = 20
-        
     # print(speed, fb)
-        
     # if we don't get anything, then we have to stop
     if x == 0:
         speed = 0
         error = 0
-        
-        
     # send command to drone to follow face or move away from face
     drone.send_rc_control(0,fb,0,speed)
     return error
@@ -250,7 +205,7 @@ def initCamera():
         img = cv2.resize(img, (w,h))
         img,info = findFace(img)
         pError = trackFace(drone,info, w, pid, pError)
-        print('center:',info[0],'area:',info[1])
+        # print('center:',info[0],'area:',info[1])
         # display image
         cv2.imshow('video window', img)
         if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -260,7 +215,7 @@ def initCamera():
     cv2.destroyAllWindows()
 #endregion
 
-initCamera()
+# initCamera()
 
 #endregion
 
