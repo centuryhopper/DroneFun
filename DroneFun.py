@@ -12,6 +12,7 @@ drone = tello.Tello()
 drone.connect()
 print(f'average temperature of drone: {drone.get_temperature()}')
 print(f'current drone battery level: {drone.get_battery()}%')
+# turn on video
 drone.streamon()
 # drone.takeoff()
 # drone.send_rc_control(0,0,12,0)
@@ -73,6 +74,7 @@ def getKey(keyCode:str) -> bool:
     return ans
 
 def getCustomizedKeyboardInputs(lrSpeed=0, fbSpeed=0, udSpeed=0, yvSpeed=0) -> list[int]:
+    global drone
     lr,fb,ud,yv = 0,0,0,0
     if getKey('LEFT'): lr = -lrSpeed
     elif getKey('RIGHT'): lr = lrSpeed
@@ -92,8 +94,11 @@ def getCustomizedKeyboardInputs(lrSpeed=0, fbSpeed=0, udSpeed=0, yvSpeed=0) -> l
     
     # quit flying
     if getKey('q'): drone.land(); sleep(3)
+    
+    # save snapshot
     if getKey('z'):
         cv2.imwrite(f'Resources/Images/{time()}.jpg', img)
+        #makes sure we don't save a bunch of images at once when user tries to take a snapshot
         sleep(0.5)
 
     return [lr,fb,ud,yv]
@@ -104,16 +109,18 @@ def getCustomizedKeyboardInputs(lrSpeed=0, fbSpeed=0, udSpeed=0, yvSpeed=0) -> l
 
 # control the drone using this coroutine
 while True:
-    lr,fb,ud,yv = getCustomizedKeyboardInputs(25,25,25,25)
+    lr,fb,ud,yv = getCustomizedKeyboardInputs(50,50,50,50)
     drone.send_rc_control(lr,fb,ud,yv)
     # image capturing
     img = drone.get_frame_read().frame
-    img = cv2.resize(img, (360,240))
+    # img = cv2.resize(img, (360,240))
+    img = cv2.resize(img, (1920, 1080))
     cv2.imshow('Drone Surveillance', img)
+    # print(cv2.getWindowImageRect('Drone Surveillance'))
+    # print(cv2.getWindowProperty('Drone Surveillance', 0))
     cv2.waitKey(1)
 
 #endregion
-
 
 #region face tracking
 fbRange = [6200,6800]
