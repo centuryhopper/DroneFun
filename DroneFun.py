@@ -1,7 +1,6 @@
 import cv2
 import numpy as np
 import pygame
-
 from djitellopy import tello
 from time import sleep, time
 from enforce_typing import enforce_types
@@ -18,40 +17,24 @@ drone.streamon()
 # drone.send_rc_control(0,0,12,0)
 # sleep(1.1)
 
-global img
-
 #endregion
 
 #region basic movements
-
 # drone.send_rc_control(left_right_velocity, forward_backward_velocity, up_down_velocity, yaw_velocity)
-
 # drone.send_rc_control(0,50,0,0)
-
 # sleep(2)
-
 # drone.send_rc_control(0,0,0,30)
-
 # sleep(2)
-
 # drone.send_rc_control(0,0,0,0)
 # drone.land()
 #endregion
 
 #region image capture
-
-
-
 # while True:
-
 #     img = drone.get_frame_read().frame
-
 #     img = cv2.resize(img, (360,240))
-
 #     cv2.imshow('Image', img)
-
 #     cv2.waitKey(1)
-
 #endregion
 
 #region keyboard controls
@@ -59,7 +42,7 @@ global img
 def init():
     pygame.init()
     win = pygame.display.set_mode((400,400))
-init()
+# init()
 
 # acquiring key strokes
 # for more details, check out https://www.geeksforgeeks.org/how-to-get-keyboard-input-in-pygame/
@@ -108,17 +91,17 @@ def getCustomizedKeyboardInputs(lrSpeed=0, fbSpeed=0, udSpeed=0, yvSpeed=0) -> l
 #region surveillance
 
 # control the drone using this coroutine
-while True:
-    lr,fb,ud,yv = getCustomizedKeyboardInputs(50,50,50,50)
-    drone.send_rc_control(lr,fb,ud,yv)
-    # image capturing
-    img = drone.get_frame_read().frame
-    # img = cv2.resize(img, (360,240))
-    img = cv2.resize(img, (1920, 1080))
-    cv2.imshow('Drone Surveillance', img)
-    # print(cv2.getWindowImageRect('Drone Surveillance'))
-    # print(cv2.getWindowProperty('Drone Surveillance', 0))
-    cv2.waitKey(1)
+def droneSurveillance():
+    while True:
+        lr,fb,ud,yv = getCustomizedKeyboardInputs(50,50,50,50)
+        drone.send_rc_control(lr,fb,ud,yv)
+        # image capturing
+        img = drone.get_frame_read().frame
+        # img = cv2.resize(img, (360,240))
+        img = cv2.resize(img, (1920, 1080))
+        cv2.imshow('Drone Surveillance', img)
+        cv2.waitKey(1)
+# droneSurveillance()
 
 #endregion
 
@@ -134,7 +117,7 @@ w,h = 360,240
 @enforce_types
 def findFace(img, color:tuple[int,int,int]=(0,0,255)):
     '''
-    method proposed by viola jones
+    method proposed by viola/jones
     (draws a red rectangle around the face)
     -the center value will be used to rotate
     -the area value will be used to go forwards and backwards
@@ -175,8 +158,8 @@ def trackFace(drone,info, w, pid, pError):
     x,y = info[0]
     # w//2 is center of image
     error = x - w//2
-    # equation of pid (proportional, integral, derivative)
     
+    # equation of pid (proportional, integral, derivative)
     speed = pid[0]*error + pid[1]*(error - pError)
     speed = int(np.clip(speed,-100,100))
     fb = 0
