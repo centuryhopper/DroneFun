@@ -13,9 +13,7 @@ print(f'average temperature of drone: {drone.get_temperature()}')
 print(f'current drone battery level: {drone.get_battery()}%')
 # turn on video
 drone.streamon()
-# drone.takeoff()
-# drone.send_rc_control(0,0,12,0)
-# sleep(1.1)
+
 
 #endregion
 
@@ -106,14 +104,15 @@ def droneSurveillance():
 #endregion
 
 #region face tracking
-fbRange = [6200,6800]
+
+# range for tracking face (lowerbound and upper bound)
+fbRange = [1000, 11000]
 # change sensitivity of error by this value
-pid = [0.4,0.4,0]
+pid = [0.4, 0.4, 0]
 pError = 0
 w,h = 360,240
 
 #region find face()
-
 @enforce_types
 def findFace(img, color:tuple[int,int,int]=(0,0,255)):
     '''
@@ -133,6 +132,7 @@ def findFace(img, color:tuple[int,int,int]=(0,0,255)):
     for x,y,w,h in faces:
         startingPt = (x,y)
         endingPt = (x+w,y+h)
+        # draw a rectangle
         cv2.rectangle(img, startingPt, endingPt, color, thickness=2)
         # get center x and center y
         cx = x + w//2
@@ -142,7 +142,6 @@ def findFace(img, color:tuple[int,int,int]=(0,0,255)):
         faceLstArea.append(area)
         # draw a green circle that shows the center of the face
         cv2.circle(img, (cx,cy), 5, (0,255,0), cv2.FILLED)
-    
     # get index of max area of a face
     if len(faceLstArea) > 0:
         i = faceLstArea.index(max(faceLstArea))
@@ -152,9 +151,9 @@ def findFace(img, color:tuple[int,int,int]=(0,0,255)):
 #endregion
 
 #region track face()
-
 def trackFace(drone,info, w, pid, pError):
     area = info[1]
+    print(f'{area = }')
     x,y = info[0]
     # w//2 is center of image
     error = x - w//2
@@ -169,10 +168,10 @@ def trackFace(drone,info, w, pid, pError):
         fb = 0
     # if face is too close, then move drone away from face
     elif area > fbRange[1]:
-        fb = -20
+        fb = -30
     # else if face is too far, then move drone towards face
     elif area < fbRange[0] and area != 0:
-        fb = 20
+        fb = 30
     # print(speed, fb)
     # if we don't get anything, then we have to stop
     if x == 0:
@@ -184,9 +183,11 @@ def trackFace(drone,info, w, pid, pError):
 #endregion
 
 #region initCamera
-
-def initCamera():
+def initCamera(shouldTakeOff=False):
     global pError, drone
+    if shouldTakeOff: drone.takeoff()
+    drone.send_rc_control(0,0,15,0)
+    sleep(1.1)
     # cap = cv2.VideoCapture(0)
     while True:
         # cap.read() returns (bool,np.array)
@@ -205,7 +206,7 @@ def initCamera():
     cv2.destroyAllWindows()
 #endregion
 
-# initCamera()
+initCamera(shouldTakeOff=True)
 
 #endregion
 
