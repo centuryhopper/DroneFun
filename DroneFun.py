@@ -1,13 +1,9 @@
 import cv2
-
 import math
-
 import numpy as np
 import pygame
-
 from djitellopy import tello
 from time import sleep, time
-
 from enforce_typing import enforce_types
 
 
@@ -15,6 +11,10 @@ from enforce_typing import enforce_types
 
 drone = tello.Tello()
 drone.connect()
+
+# sanity checks
+drone.land()
+drone.streamoff()
 
 print(f'average temperature of drone: {drone.get_temperature()}')
 
@@ -209,8 +209,6 @@ fbRange = [3500, 6800]
 
 
 # change sensitivity of error by this value
-
-
 pid = [0.4, 0.4, 0]
 
 
@@ -288,13 +286,10 @@ def findFace(img, color: tuple[int, int, int] = (0, 0, 255)):
 
 
 # region track face()
-
-
 def trackFace(drone, info, w, pid, pError):
-
     area = info[1]
 
-    print(f' {area = }')
+    print(f'{area = }')
 
     x, y = info[0]
 
@@ -319,14 +314,12 @@ def trackFace(drone, info, w, pid, pError):
     # if face is too close, then move drone away from face
 
     elif area > fbRange[1]:
-
-        fb = -30
+        fb = -45
 
     # else if face is too far, then move drone towards face
 
     elif area < fbRange[0] and area != 0:
-
-        fb = 30
+        fb = 45
 
     # print(speed, fb)
 
@@ -357,6 +350,7 @@ def initCamera(shouldTakeOff=False):
     if shouldTakeOff:
         drone.takeoff()
 
+    # go up
     drone.send_rc_control(0, 0, 12, 0)
 
     sleep(1.1)
@@ -365,16 +359,12 @@ def initCamera(shouldTakeOff=False):
 
     while True:
 
-        # cap.read()returns (bool, np.array)
-
+        # cap.read() returns (bool, np.array)
         # _, img = cap.read()
 
         img = drone.get_frame_read().frame
-
         img = cv2.resize(img, (w, h))
-
         img, info = findFace(img)
-
         pError = trackFace(drone, info, w, pid, pError)
 
         # print('center:', info[0], 'area:', info[1])
@@ -384,7 +374,6 @@ def initCamera(shouldTakeOff=False):
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             drone.land()
-
             break
     cap.release()
 
@@ -395,6 +384,7 @@ def initCamera(shouldTakeOff=False):
 # initCamera(shouldTakeOff = True)
 
 # endregion
+
 
 # region drone mapping
 
