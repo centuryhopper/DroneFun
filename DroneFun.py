@@ -133,8 +133,6 @@ pHeightError = 0
 w, h = 360, 240
 
 # region find face()
-
-
 @enforce_types
 def findFace(img, color: tuple[int, int, int] = (0, 0, 255)):
     '''
@@ -143,14 +141,18 @@ def findFace(img, color: tuple[int, int, int] = (0, 0, 255)):
     '''
     faceCascade = cv2.CascadeClassifier(
         'Resources/haarcascades/haarcascade_frontalface_default.xml')
-    # converting to gray scale
+    # converting to gray scale because the ML algorithm requires gray scale image to perform its classification
     imgGray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    faces = faceCascade.detectMultiScale(imgGray, 1.2, 8)
+
+    # https://stackoverflow.com/questions/20801015/recommended-values-for-opencv-detectmultiscale-parameters
+    faces = faceCascade.detectMultiScale(imgGray, scaleFactor=1.2, minNeighbors=8)
     # find the biggest face if there are multiple faces
     faceLstCenters = []
     faceLstArea = []
     for x, y, w, h in faces:
+        # top left hand corner pt
         startingPt = (x, y)
+        # bottom right hand corner pt
         endingPt = (x+w, y+h)
         # draw a rectangle
         cv2.rectangle(img, startingPt, endingPt, color, thickness=2)
@@ -161,7 +163,9 @@ def findFace(img, color: tuple[int, int, int] = (0, 0, 255)):
         faceLstCenters.append([cx, cy])
         faceLstArea.append(area)
         # draw a green circle that shows the center of the face
-        cv2.circle(img, (cx, cy), 5, (0, 255, 0), cv2.FILLED)
+        cv2.circle(img, center=(cx, cy), radius=5, color=(0, 255, 0),thickness=cv2.FILLED)
+        cv2.arrowedLine(img, center=(cx, cy), color=(0, 0, 255),thickness=cv2.FILLED)
+
     # get index of max area of a face
     if len(faceLstArea) > 0:
         i = faceLstArea.index(max(faceLstArea))
@@ -170,8 +174,6 @@ def findFace(img, color: tuple[int, int, int] = (0, 0, 255)):
 # endregion
 
 # region track face()
-
-
 def trackFace(drone, faceCenterAndAreaInfo, screenWidth, screenHeight, pid, pWidthError, pHeightError):
     area = faceCenterAndAreaInfo[1]
     print(f'{area = }')
@@ -217,7 +219,7 @@ def trackFace(drone, faceCenterAndAreaInfo, screenWidth, screenHeight, pid, pWid
 # endregion
 
 # region initCamera
-def initCamera(shouldTakeOff=False):
+def initCameraAndTrackFace(shouldTakeOff=False):
     global pWidthError, pHeightError, drone
     # turn on video
     drone.streamon()
@@ -248,7 +250,7 @@ def initCamera(shouldTakeOff=False):
 
 # endregion
 
-initCamera(shouldTakeOff=True)
+initCameraAndTrackFace(shouldTakeOff=True)
 # endregion
 
 # region drone mapping
