@@ -2,16 +2,19 @@ import cv2
 import math
 import numpy as np
 import pygame
+import imutils
 from djitellopy import tello
 from time import sleep, time
 from enforce_typing import enforce_types
+from pyimagesearch.objcenter import ObjCenter
+from pyimagesearch.pid import PID
 
 # region drone initialization
 drone = tello.Tello()
 drone.connect()
 # sanity checks
-if drone.get_height() > 2:
-    drone.land()
+# if drone.get_height() > 2:
+#     drone.land()
 if drone.stream_on:
     drone.streamoff()
 print(f'average temperature of drone: {drone.get_temperature()}')
@@ -129,10 +132,11 @@ fbRange = [3500, 6800]
 # change sensitivity of error by this value
 pid = [0.4, 0.4, 0]
 pWidthError = 0
-pHeightError = 0
-w, h = 360, 240
+# w, h = 360, 240
 
 # region find face()
+
+
 @enforce_types
 def findFace(img, color: tuple[int, int, int] = (0, 0, 255)):
     '''
@@ -145,7 +149,8 @@ def findFace(img, color: tuple[int, int, int] = (0, 0, 255)):
     imgGray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
     # https://stackoverflow.com/questions/20801015/recommended-values-for-opencv-detectmultiscale-parameters
-    faces = faceCascade.detectMultiScale(imgGray, scaleFactor=1.2, minNeighbors=8)
+    faces = faceCascade.detectMultiScale(
+        imgGray, scaleFactor=1.2, minNeighbors=8)
     # find the biggest face if there are multiple faces
     faceLstCenters = []
     faceLstArea = []
@@ -163,8 +168,10 @@ def findFace(img, color: tuple[int, int, int] = (0, 0, 255)):
         faceLstCenters.append([cx, cy])
         faceLstArea.append(area)
         # draw a green circle that shows the center of the face
-        cv2.circle(img, center=(cx, cy), radius=5, color=(0, 255, 0),thickness=cv2.FILLED)
-        cv2.arrowedLine(img, center=(cx, cy), color=(0, 0, 255),thickness=cv2.FILLED)
+        cv2.circle(img, center=(cx, cy), radius=5,
+                   color=(0, 255, 0), thickness=cv2.FILLED)
+        cv2.arrowedLine(img, center=(cx, cy), color=(
+            0, 0, 255), thickness=cv2.FILLED)
 
     # get index of max area of a face
     if len(faceLstArea) > 0:
@@ -173,25 +180,18 @@ def findFace(img, color: tuple[int, int, int] = (0, 0, 255)):
     return img, [[0, 0], 0]
 # endregion
 
-# region track face()
-def trackFace(drone, faceCenterAndAreaInfo, screenWidth, screenHeight, pid, pWidthError, pHeightError):
-    area = faceCenterAndAreaInfo[1]
-    print(f'{area = }')
-    x, y = faceCenterAndAreaInfo[0]
-    # w//2 is center of image
+# region get drone forward/backward and yaw velocity
+def getFBAndYawVelocity(drone, x, y, faceArea, screenWidth, pid, pWidthError):
+    # area of face
+    area = faceArea
+    # print(f'{area = }')
+    # screenWidth//2 is center of image (in terms of width of screen)
     errorWidth = x - screenWidth//2
-    errorHeight = y - screenHeight//2
 
     # equation of pid (proportional, integral, derivative)
-
     # region yaw calculation
     speedWidth = pid[0]*errorWidth + pid[1]*(errorWidth - pWidthError)
     speedWidth = int(np.clip(speedWidth, -100, 100))
-    # endregion
-
-    # region up/down calculation
-    speedHeight = pid[0]*errorHeight + pid[1]*(errorHeight - pHeightError)
-    speedHeight = int(np.clip(speedHeight, -50, 50))
     # endregion
 
     fb = 0
@@ -210,41 +210,83 @@ def trackFace(drone, faceCenterAndAreaInfo, screenWidth, screenHeight, pid, pWid
     if x == 0:
         speedWidth = 0
         errorWidth = 0
-        errorHeight = 0
 
     # send command to drone to follow face or move away from face
-    drone.send_rc_control(left_right_velocity=0, forward_backward_velocity=fb,
-                          up_down_velocity=0, yaw_velocity=speedWidth)
-    return errorWidth, errorHeight
+    # drone.send_rc_control(left_right_velocity=0, forward_backward_velocity=fb,
+    #                       up_down_velocity=0, yaw_velocity=speedWidth)
+    return errorWidth, fb, speedWidth
 # endregion
 
-# region initCamera
+# region initCamera and track face
+
+
 def initCameraAndTrackFace(shouldTakeOff=False):
-    global pWidthError, pHeightError, drone
-    # turn on video
-    drone.streamon()
+    global pWidthError, drone, w, h
     if shouldTakeOff:
+        # turn on video
+        drone.streamon()
         drone.takeoff()
-    # go up
-    drone.send_rc_control(0, 0, 12, 0)
-    sleep(1)
-    # cap = cv2.VideoCapture(0)
+        # go up
+        drone.move_up(20)
+
+    faceCenter = ObjCenter(
+        haarPath='Resources/haarcascades/haarcascade_frontalface_default.xml')
+    horizontalPID = PID(kP=0.7, kI=0.0001, kD=0.1)
+    verticalPID = PID(kP=0.7, kI=0.0001, kD=0.1)
+    horizontalPID.initialize()
+    verticalPID.initialize()
+
     while True:
-        # cap.read() returns (bool, np.array)
-        # _, img = cap.read()
+        # get drone image
         img = drone.get_frame_read().frame
-        img = cv2.resize(img, (w, h))
-        img, faceCenterAndAreaInfo = findFace(img)
-        pWidthError, pHeightError = trackFace(
-            drone, faceCenterAndAreaInfo, w, h, pid, pWidthError, pHeightError)
-        # print('center:', info[0], 'area:', info[1])
+        img = imutils.resize(img, width=400)
+        # get image shape and dimensions
+        H, W, _ = img.shape
+        print(H, W)
+        centerX = W//2
+        centerY = H//2
+        frameCenter = (centerX, centerY)
+        # draw a circle in the center of the image frame
+        cv2.circle(img, center=frameCenter, radius=5,
+                   color=(0, 0, 255), thickness=-1)
+
+        # find face location
+        faceLocation = faceCenter.update(img, frameCenter=None)
+        ((faceX, faceY), face, d) = faceLocation
+
+        fb,yawVel = 0,0
+
+        if face is not None:
+            (x, y, w, h) = face
+            cv2.rectangle(img, (x, y), (x+w, y+h),
+                          (0, 255, 0), 2)
+            # draw a circle in the center of the face
+            cv2.circle(img, center=(faceX, faceY), radius=5,
+                       color=(255, 0, 0), thickness=-1)
+            # Draw line from frameCenter to face center
+            cv2.arrowedLine(img, frameCenter, (faceX, faceY),
+                            color=(0, 255, 0), thickness=2)
+
+            # region forward/backward and yaw tuning
+            pWidthError, fb, yawVel = getFBAndYawVelocity(
+                drone, x, y, w*h, W, pid, pWidthError)
+
+            # endregion
+
+        # region left/right and up/down tuning
+        # endregion
+
+        # send controls to drone
+        drone.send_rc_control(left_right_velocity=0, forward_backward_velocity=fb,
+                              up_down_velocity=0, yaw_velocity=yawVel)
+
         # display image
         cv2.imshow('video window', img)
         if cv2.waitKey(1) & 0xFF == ord('q'):
+            print('landing')
             drone.land()
             sleep(1)
             break
-    # cap.release()
     cv2.destroyAllWindows()
 
 
