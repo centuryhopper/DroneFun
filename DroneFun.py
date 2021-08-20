@@ -1,134 +1,36 @@
 import cv2
 import math
 import numpy as np
-import pygame
 import imutils
+import signal
+import sys
+from PyGameInit import init
+from threading import Thread
 from djitellopy import tello
 from time import sleep, time
 from enforce_typing import enforce_types
 from pyimagesearch.objcenter import ObjCenter
 from pyimagesearch.pid import PID
+from multiprocessing import Manager, Process, Pipe, Event
+from KeyboardProcesses import getKeyboardInput
 
-# region drone initialization
-drone = tello.Tello()
-drone.connect()
-# sanity checks
-# if drone.get_height() > 2:
-#     drone.land()
-if drone.stream_on:
-    drone.streamoff()
-print(f'average temperature of drone: {drone.get_temperature()}')
-print(f'current drone battery level: {drone.get_battery()}%')
-# endregion
-
-# region pygame window init
+# function to handle keyboard interrupt
 
 
-def init():
-    pygame.init()
-    win = pygame.display.set_mode((400, 400))
+def signal_handler(sig, frame):
+    print("Signal Handler")
+    if drone:
+        try:
+            drone.streamoff()
+            drone.land()
+        except:
+            pass
+    sys.exit()
 
 
-# init()
-# endregion
-
-# region basic movements
-# drone.send_rc_control(left_right_velocity, forward_backward_velocity, up_down_velocity, yaw_velocity)
-# drone.send_rc_control(0, 50, 0, 0)
-# sleep(2)
-# drone.send_rc_control(0, 0, 0, 30)
-# sleep(2)
-# drone.send_rc_control(0, 0, 0, 0)
-# drone.land()
-# endregion
-
-# region image capture
-# while True:
-#     img = drone.get_frame_read().frame
-#     img = cv2.resize(img, (360, 240))
-#     cv2.imshow('Image', img)
-#     cv2.waitKey(1)
-# endregion
-
-# region keyboard controls
-# acquiring key strokes
-# for more details, check out https://www.geeksforgeeks.org/how-to-get-keyboard-input-in-pygame/
-# region getkey()
-
-
-def getKey(keyCode: str) -> bool:
-    ans = False
-    for event in pygame.event.get():
-        pass
-    keyPressed = pygame.key.get_pressed()
-    myKey = getattr(pygame, f'K_{keyCode}')
-    if keyPressed[myKey]:
-        ans = True
-    pygame.display.update()
-    return ans
-# endregion
-# region getcustomizedkeyboardinputs()
-
-
-def getCustomizedKeyboardInputs(lrSpeed=0, fbSpeed=0, udSpeed=0, yvSpeed=0) -> list[int]:
-    global drone
-    lr, fb, ud, yv = 0, 0, 0, 0
-    if getKey('LEFT'):
-        lr = - lrSpeed
-    elif getKey('RIGHT'):
-        lr = lrSpeed
-    if getKey('UP'):
-        fb = fbSpeed
-    elif getKey('DOWN'):
-        fb = - fbSpeed
-    if getKey('w'):
-        ud = udSpeed
-    elif getKey('s'):
-        ud = - udSpeed
-    if getKey('a'):
-        yv = - yvSpeed
-    elif getKey('d'):
-        yv = yvSpeed
-    # take off if on the ground
-    if drone.get_height() < 2:
-        if getKey('t'):
-            drone.takeoff()
-    # quit flying
-    if getKey('q'):
-        drone.land()
-        sleep(3)
-    # save snapshot
-    if getKey('z'):
-        cv2.imwrite(f'Resources/Images/{time()}.jpg', img)
-        # makes sure we don't save a bunch of images at once when user tries to take a snapshot
-        sleep(0.5)
-    return [lr, fb, ud, yv]
-# endregion
-
-# endregion
-
-# region surveillance
-# control the drone using this coroutine
-
-
-def droneSurveillance():
-    while True:
-        lr, fb, ud, yv = getCustomizedKeyboardInputs(50, 50, 50, 50)
-        drone.send_rc_control(lr, fb, ud, yv)
-        # image capturing
-        img = drone.get_frame_read().frame
-        # img = cv2.resize(img, (360,240))
-        img = cv2.resize(img, (1920, 1080))
-        cv2.imshow('Drone Surveillance', img)
-        cv2.waitKey(1)
-
-
-# droneSurveillance()
-# endregion
-
-# region face tracking
 # range for tracking face (lowerbound and upper bound)
-fbRange = [3500, 6800]
+# observations: for ranges with lower numbers like 2200-2800,the drone tends to move away from the face
+fbRange = [8200, 8800]
 # change sensitivity of error by this value
 pid = [0.4, 0.4, 0]
 pWidthError = 0
@@ -181,6 +83,8 @@ def findFace(img, color: tuple[int, int, int] = (0, 0, 255)):
 # endregion
 
 # region get drone forward/backward and yaw velocity
+
+
 def getFBAndYawVelocity(drone, x, y, faceArea, screenWidth, pid, pWidthError):
     # area of face
     area = faceArea
@@ -200,11 +104,11 @@ def getFBAndYawVelocity(drone, x, y, faceArea, screenWidth, pid, pWidthError):
         fb = 0
     # if face is too close, then move drone away from face
     elif area > fbRange[1]:
-        fb = -35
+        fb = -20
     # else if face is too far, then move drone towards face
     # but also make sure that a face is present
     elif area < fbRange[0] and area != 0:
-        fb = 35
+        fb = 20
 
     # if we don't get anything, then we have to stop
     if x == 0:
@@ -218,16 +122,18 @@ def getFBAndYawVelocity(drone, x, y, faceArea, screenWidth, pid, pWidthError):
 # endregion
 
 # region initCamera and track face
-
-
-def initCameraAndTrackFace(shouldTakeOff=False):
-    global pWidthError, drone, w, h
+def initCameraAndTrackFace(drone, exit_event, shouldTakeOff=False, shouldShowCamera=True, maxSpeedLimit=45,):
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    global pWidthError, w, h
     if shouldTakeOff:
-        # turn on video
-        drone.streamon()
         drone.takeoff()
         # go up
-        drone.move_up(20)
+        drone.move_up(45)
+        sleep(2)
+    if shouldShowCamera:
+        # turn on video
+        drone.streamon()
 
     faceCenter = ObjCenter(
         haarPath='Resources/haarcascades/haarcascade_frontalface_default.xml')
@@ -235,26 +141,26 @@ def initCameraAndTrackFace(shouldTakeOff=False):
     verticalPID = PID(kP=0.7, kI=0.0001, kD=0.1)
     horizontalPID.initialize()
     verticalPID.initialize()
+    maxThreshold = maxSpeedLimit
 
-    while True:
+    sleep(2)
+    while not exit_event.is_set():
+        print('here in face tracker')
         # get drone image
         img = drone.get_frame_read().frame
         img = imutils.resize(img, width=400)
         # get image shape and dimensions
         H, W, _ = img.shape
-        print(H, W)
         centerX = W//2
         centerY = H//2
         frameCenter = (centerX, centerY)
         # draw a circle in the center of the image frame
         cv2.circle(img, center=frameCenter, radius=5,
                    color=(0, 0, 255), thickness=-1)
-
         # find face location
         faceLocation = faceCenter.update(img, frameCenter=None)
         ((faceX, faceY), face, d) = faceLocation
-
-        fb,yawVel = 0,0
+        fb, yawVel, pan_update, tilt_update = 0, 0, 0, 0
 
         if face is not None:
             (x, y, w, h) = face
@@ -266,19 +172,40 @@ def initCameraAndTrackFace(shouldTakeOff=False):
             # Draw line from frameCenter to face center
             cv2.arrowedLine(img, frameCenter, (faceX, faceY),
                             color=(0, 255, 0), thickness=2)
-
             # region forward/backward and yaw tuning
             pWidthError, fb, yawVel = getFBAndYawVelocity(
                 drone, x, y, w*h, W, pid, pWidthError)
 
             # endregion
 
-        # region left/right and up/down tuning
-        # endregion
+            # region left/right and up/down tuning
+            # calculate the pan and tilt errors and run through pid controllers
+            pan_error = centerX - faceX
+            pan_update = horizontalPID.update(pan_error, sleep=0)
+
+            tilt_error = centerY - faceY
+            tilt_update = verticalPID.update(tilt_error, sleep=0)
+
+            cv2.putText(img, f"X Error: {pan_error} PID: {pan_update:.2f}", (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 1,
+                        (0, 255, 0), 2, cv2.LINE_AA)
+
+            cv2.putText(img, f"Y Error: {tilt_error} PID: {tilt_update:.2f}", (20, 70), cv2.FONT_HERSHEY_SIMPLEX,
+                        1,
+                        (0, 0, 255), 2, cv2.LINE_AA)
+
+            pan_update = int(np.clip(pan_update, -maxThreshold, maxThreshold))
+            # NOTE: if face is to the right of the drone, the distance will be negative, but
+            # the drone has to have positive power so I am flipping the sign
+            pan_update *= -1
+            tilt_update = int(
+                np.clip(tilt_update, -maxThreshold, maxThreshold))
+
+            # endregion
 
         # send controls to drone
-        drone.send_rc_control(left_right_velocity=0, forward_backward_velocity=fb,
-                              up_down_velocity=0, yaw_velocity=yawVel)
+        if pan_update != 0 or tilt_update != 0 or fb != 0 or yawVel != 0:
+            drone.send_rc_control(left_right_velocity=pan_update//3, forward_backward_velocity=fb,
+                                  up_down_velocity=tilt_update//2, yaw_velocity=yawVel)
 
         # display image
         cv2.imshow('video window', img)
@@ -287,12 +214,8 @@ def initCameraAndTrackFace(shouldTakeOff=False):
             drone.land()
             sleep(1)
             break
+    signal_handler(None, None)
     cv2.destroyAllWindows()
-
-
-# endregion
-
-initCameraAndTrackFace(shouldTakeOff=True)
 # endregion
 
 # region drone mapping
@@ -302,55 +225,11 @@ aSpeed = 360 / 10  # Angular Speed Degrees/s  (50d/s)
 interval = 0.25
 dInterval = fSpeed * interval
 aInterval = aSpeed * interval
-###############################################
 x, y = 500, 500
 a = 0
 yaw = 0
 points = [(0, 0), (0, 0)]
-# region get keyboard input
 
-
-def getKeyboardInput(speed=80, aSpeed=100):
-    lr, fb, ud, yv = 0, 0, 0, 0
-    global x, y, yaw, a
-    d = 0
-    if getKey('LEFT'):
-        lr = -speed
-        d = dInterval
-        a = -180
-    elif getKey('RIGHT'):
-        lr = speed
-        d = -dInterval
-        a = 180
-    if getKey('UP'):
-        fb = speed
-        d = dInterval
-        a = 270
-    elif getKey('DOWN'):
-        fb = -speed
-        d = -dInterval
-        a = -90
-    if getKey('w'):
-        ud = speed
-    elif getKey('s'):
-        ud = -speed
-    if getKey('a'):
-        yv = -aSpeed
-        yaw -= aInterval
-    elif getKey('d'):
-        yv = aSpeed
-        yaw += aInterval
-    if getKey('q'):
-        drone.land()
-        sleep(2)
-    if getKey('t'):
-        drone.takeoff()
-    sleep(interval)
-    a += yaw
-    x += int(d * math.cos(math.radians(a)))
-    y += int(d * math.sin(math.radians(a)))
-    return [lr, fb, ud, yv, x, y]
-# endregion
 # region draw points
 
 
@@ -366,12 +245,17 @@ def drawPoints(img, points):
         cv2.putText(img, f'({(points[-1][0] - 500 )/ 100},{(points[-1][1] - 500) / 100})m',
                     (points[-1][0] + 10, points[-1][1] + 30), cv2.FONT_HERSHEY_PLAIN, 1, (255, 0, 255), 1)
 # endregion
+
 # region runner
 
 
-def startDroneMapping():
+def startDroneMapping(drone, exit_event):
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    init()
+    sleep(0.1)
     while True:
-        vals = getKeyboardInput()
+        vals = getKeyboardInput(exit_event)
         drone.send_rc_control(vals[0], vals[1], vals[2], vals[3])
         img = np.zeros((1000, 1000, 3), np.uint8)
         if (points[-1][0] != vals[4] or points[-1][1] != vals[5]):
@@ -379,9 +263,44 @@ def startDroneMapping():
         drawPoints(img, points)
         cv2.imshow('Output', img)
         cv2.waitKey(1)
+    signal_handler(None, None)
 
 
 # endregion
 # endregion
 
-# startDroneMapping()
+
+if __name__ == '__main__':
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    # region drone initialization
+    drone = tello.Tello()
+    drone.connect()
+    # sanity checks
+    if drone.get_height() > 2:
+        drone.land()
+    if drone.stream_on:
+        drone.streamoff()
+    print(f'average temperature of drone: {drone.get_temperature()}')
+    print(f'current drone battery level: {drone.get_battery()}%')
+    # endregion
+
+    exit_event = Event()
+
+    # initCameraAndTrackFace(drone)
+    # startDroneMapping(drone, exit_event)
+
+    with Manager() as manager:
+        # p1 = Process(target=initCameraAndTrackFace, args=(drone,exit_event,))
+        p2 = Process(target=startDroneMapping, args=(drone, exit_event,))
+        p2.start()
+        # p1.start()
+
+        # sleep(30)
+        # while not exit_event.is_set():
+        #     pass
+        # p1.terminate()
+        # p2.terminate()
+        # p1.join()
+        p2.join()
+    print('done!')
