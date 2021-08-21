@@ -1,8 +1,22 @@
+import pygame
+import math
+from time import sleep
+
+x, y = 500, 500
+a = 0
+yaw = 0
+interval = 0.25
+fSpeed = 117 / 10  # Forward Speed in cm/s   (15cm/s)
+aSpeed = 360 / 10  # Angular Speed Degrees/s  (50d/s)
+dInterval = fSpeed * interval
+aInterval = aSpeed * interval
 
 
 # region keyboard controls
 # acquiring key strokes
 # for more details, check out https://www.geeksforgeeks.org/how-to-get-keyboard-input-in-pygame/
+
+
 def getKey(keyCode: str) -> bool:
     ans = False
     for event in pygame.event.get():
@@ -13,9 +27,12 @@ def getKey(keyCode: str) -> bool:
         ans = True
     pygame.display.update()
     return ans
+#endregion
 
 # region get keyboard input
-def getKeyboardInput(exit_event, speed=80, aSpeed=100,):
+
+
+def getKeyboardInput(drone,exit_event, speed=80, aSpeed=100,):
     lr, fb, ud, yv = 0, 0, 0, 0
     global x, y, yaw, a
     d = 0
@@ -100,4 +117,3 @@ def getCustomizedKeyboardInputs(drone, lrSpeed=0, fbSpeed=0, udSpeed=0, yvSpeed=
         sleep(0.5)
     return [lr, fb, ud, yv]
 # endregion
-

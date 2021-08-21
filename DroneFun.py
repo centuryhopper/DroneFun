@@ -144,7 +144,7 @@ def initCameraAndTrackFace(drone, exit_event, shouldTakeOff=False, shouldShowCam
     maxThreshold = maxSpeedLimit
 
     sleep(2)
-    while not exit_event.is_set():
+    while True:
         print('here in face tracker')
         # get drone image
         img = drone.get_frame_read().frame
@@ -219,20 +219,9 @@ def initCameraAndTrackFace(drone, exit_event, shouldTakeOff=False, shouldShowCam
 # endregion
 
 # region drone mapping
-######## PARAMETERS ###########
-fSpeed = 117 / 10  # Forward Speed in cm/s   (15cm/s)
-aSpeed = 360 / 10  # Angular Speed Degrees/s  (50d/s)
-interval = 0.25
-dInterval = fSpeed * interval
-aInterval = aSpeed * interval
-x, y = 500, 500
-a = 0
-yaw = 0
 points = [(0, 0), (0, 0)]
 
 # region draw points
-
-
 def drawPoints(img, points):
     '''
     draws all points provided by the 'points' list
@@ -255,7 +244,7 @@ def startDroneMapping(drone, exit_event):
     init()
     sleep(0.1)
     while True:
-        vals = getKeyboardInput(exit_event)
+        vals = getKeyboardInput(drone,exit_event)
         drone.send_rc_control(vals[0], vals[1], vals[2], vals[3])
         img = np.zeros((1000, 1000, 3), np.uint8)
         if (points[-1][0] != vals[4] or points[-1][1] != vals[5]):
@@ -271,6 +260,11 @@ def startDroneMapping(drone, exit_event):
 
 
 if __name__ == '__main__':
+    args = sys.argv
+    if len(args) != 2:
+        print('must choose one function to run')
+        sys.exit(0)
+
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     # region drone initialization
@@ -285,22 +279,28 @@ if __name__ == '__main__':
     print(f'current drone battery level: {drone.get_battery()}%')
     # endregion
 
+    init()
     exit_event = Event()
 
-    # initCameraAndTrackFace(drone)
-    # startDroneMapping(drone, exit_event)
+    if args[1] == '1':
+        initCameraAndTrackFace(drone, shouldTakeOff=True)
+    elif args[1] == '2':
+        print('starting drone mapping function')
+        startDroneMapping(drone, exit_event)
+    # print(args)
 
-    with Manager() as manager:
-        # p1 = Process(target=initCameraAndTrackFace, args=(drone,exit_event,))
-        p2 = Process(target=startDroneMapping, args=(drone, exit_event,))
-        p2.start()
-        # p1.start()
 
-        # sleep(30)
-        # while not exit_event.is_set():
-        #     pass
-        # p1.terminate()
-        # p2.terminate()
-        # p1.join()
-        p2.join()
+    # with Manager() as manager:
+    #     # p1 = Process(target=initCameraAndTrackFace, args=(drone,exit_event,))
+    #     p2 = Process(target=startDroneMapping, args=(drone, exit_event,))
+    #     p2.start()
+    #     # p1.start()
+
+    #     # sleep(30)
+    #     # while not exit_event.is_set():
+    #     #     pass
+    #     # p1.terminate()
+    #     # p2.terminate()
+    #     # p1.join()
+    #     p2.join()
     print('done!')
