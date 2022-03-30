@@ -37,10 +37,8 @@ pWidthError = 0
 # w, h = 360, 240
 
 # region find face()
-
-
 @enforce_types
-def findFace(img, color: tuple[int, int, int] = (0, 0, 255)):
+def findFace(img, color = (0, 0, 255)):
     '''
     method proposed by viola/jones
     (draws a red rectangle around the face) - the center value will be used to rotate - the area value will be used to go forwards and backwards
@@ -186,10 +184,10 @@ def initCameraAndTrackFace(drone, exit_event, shouldTakeOff=False, shouldShowCam
             tilt_error = centerY - faceY
             tilt_update = verticalPID.update(tilt_error, sleep=0)
 
-            cv2.putText(img, f"X Error: {pan_error} PID: {pan_update:.2f}", (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 1,
+            cv2.putText(img, f'X Error: {pan_error} PID: {pan_update:.2f}', (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 1,
                         (0, 255, 0), 2, cv2.LINE_AA)
 
-            cv2.putText(img, f"Y Error: {tilt_error} PID: {tilt_update:.2f}", (20, 70), cv2.FONT_HERSHEY_SIMPLEX,
+            cv2.putText(img, f'Y Error: {tilt_error} PID: {tilt_update:.2f}', (20, 70), cv2.FONT_HERSHEY_SIMPLEX,
                         1,
                         (0, 0, 255), 2, cv2.LINE_AA)
 
@@ -287,6 +285,8 @@ if __name__ == '__main__':
     elif args[1] == '2':
         print('starting drone mapping function')
         startDroneMapping(drone, exit_event)
+    else:
+        print('please enter 1 or 2')
     # print(args)
 
 

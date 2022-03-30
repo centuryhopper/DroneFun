@@ -1,11 +1,12 @@
 import pygame
 import math
-from time import sleep
+from time import sleep, time
+import cv2
 
 x, y = 500, 500
 a = 0
 yaw = 0
-interval = 0.25
+interval = 0.15
 fSpeed = 117 / 10  # Forward Speed in cm/s   (15cm/s)
 aSpeed = 360 / 10  # Angular Speed Degrees/s  (50d/s)
 dInterval = fSpeed * interval
@@ -65,14 +66,14 @@ def getKeyboardInput(drone,exit_event, speed=80, aSpeed=100,):
     if getKey('q'):
         drone.land()
         exit_event.set()
-        sleep(1)
+        sleep(.25)
     elif getKey('t'):
         drone.takeoff()
-        sleep(1)
-    if getKey('z'):
-        cv2.imwrite(f'Resources/Images/{time()}.jpg', img)
-        # makes sure we don't save a bunch of images at once when user tries to take a snapshot
-        sleep(0.5)
+        sleep(.25)
+    # if getKey('z'):
+    #     cv2.imwrite(f'Resources/Images/{time()}.jpg', img)
+    #     # makes sure we don't save a bunch of images at once when user tries to take a snapshot
+        # sleep(0.5)
     sleep(interval)
     a += yaw
     x += int(d * math.cos(math.radians(a)))
@@ -80,40 +81,39 @@ def getKeyboardInput(drone,exit_event, speed=80, aSpeed=100,):
     return [lr, fb, ud, yv, x, y]
 # endregion
 
-
 # region getcustomizedkeyboardinputs()
 
 
-def getCustomizedKeyboardInputs(drone, lrSpeed=0, fbSpeed=0, udSpeed=0, yvSpeed=0) -> list[int]:
-    lr, fb, ud, yv = 0, 0, 0, 0
-    if getKey('LEFT'):
-        lr = - lrSpeed
-    elif getKey('RIGHT'):
-        lr = lrSpeed
-    if getKey('UP'):
-        fb = fbSpeed
-    elif getKey('DOWN'):
-        fb = - fbSpeed
-    if getKey('w'):
-        ud = udSpeed
-    elif getKey('s'):
-        ud = - udSpeed
-    if getKey('a'):
-        yv = - yvSpeed
-    elif getKey('d'):
-        yv = yvSpeed
-    # take off if on the ground
-    if drone.get_height() < 2:
-        if getKey('t'):
-            drone.takeoff()
-    # quit flying
-    if getKey('q'):
-        drone.land()
-        sleep(3)
-    # save snapshot
-    if getKey('z'):
-        cv2.imwrite(f'Resources/Images/{time()}.jpg', img)
-        # makes sure we don't save a bunch of images at once when user tries to take a snapshot
-        sleep(0.5)
-    return [lr, fb, ud, yv]
+# def getCustomizedKeyboardInputs(drone, lrSpeed=0, fbSpeed=0, udSpeed=0, yvSpeed=0) -> list[int]:
+#     lr, fb, ud, yv = 0, 0, 0, 0
+#     if getKey('LEFT'):
+#         lr = - lrSpeed
+#     elif getKey('RIGHT'):
+#         lr = lrSpeed
+#     if getKey('UP'):
+#         fb = fbSpeed
+#     elif getKey('DOWN'):
+#         fb = - fbSpeed
+#     if getKey('w'):
+#         ud = udSpeed
+#     elif getKey('s'):
+#         ud = - udSpeed
+#     if getKey('a'):
+#         yv = - yvSpeed
+#     elif getKey('d'):
+#         yv = yvSpeed
+#     # take off if on the ground
+#     if drone.get_height() < 2:
+#         if getKey('t'):
+#             drone.takeoff()
+#     # quit flying
+#     if getKey('q'):
+#         drone.land()
+#         sleep(3)
+#     # save snapshot
+#     if getKey('z'):
+#         cv2.imwrite(f'Resources/Images/{time()}.jpg', img)
+#         # makes sure we don't save a bunch of images at once when user tries to take a snapshot
+#         sleep(0.5)
+#     return [lr, fb, ud, yv]
 # endregion
